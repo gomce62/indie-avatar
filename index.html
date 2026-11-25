@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Indie Presenter — Reusable Avatar Web Component &amp; Demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #060b16;
+        --panel: #0f172a;
+        --panel-2: #162033;
+        --border: rgba(148, 163, 184, 0.22);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-bg: rgba(56, 189, 248, 0.14);
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at 18% 0%, #0f2744 0%, var(--bg) 52%);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.5;
+      }
+
+      .page {
+        max-width: 1260px;
+        margin: 0 auto;
+        padding: 28px 20px 56px;
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: clamp(1.5rem, 2.5vw, 2.1rem);
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        max-width: 680px;
+      }
+
+      .preset-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 13px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 140ms ease, border-color 140ms ease;
+      }
+
+      .btn:hover {
+        background: #1e293b;
+        border-color: rgba(148, 163, 184, 0.45);
+      }
+
+      .btn.active {
+        background: var(--accent-bg);
+        border-color: var(--accent);
+        color: #bae6fd;
+      }
+
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 12px;
+        border-radius: 8px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+        gap: 22px;
+        align-items: start;
+      }
+
+      @media (max-width: 960px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+      }
+
+      .card + .card {
+        margin-top: 18px;
+      }
+
+      .card-title {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      @media (max-width: 560px) {
+        .field-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      label.field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      input[type="text"],
+      input[type="number"],
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 9px;
+        border: 1px solid var(--border);
+        background: #0b1220;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 13px;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 82px;
+      }
+
+      .outfit-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px;
+      }
+
+      .outfit-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 7px 9px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #0b1220;
+        font-size: 12px;
+      }
+
+      .outfit-chip label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .outfit-chip .preview-link {
+        background: none;
+        border: none;
+        color: var(--accent);
+        font-size: 11px;
+        cursor: pointer;
+        padding: 2px 4px;
+      }
+
+      .outfit-chip .preview-link:hover {
+        text-decoration: underline;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      pre.code-box {
+        margin: 8px 0 0;
+        padding: 12px;
+        border-radius: 10px;
+        background: #060b16;
+        border: 1px solid var(--border);
+        color: #cbd5e1;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .embed-section + .embed-section {
+        margin-top: 14px;
+      }
+
+      .embed-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div>
+          <h1>&lt;indie-presenter&gt; Demo &amp; Embed Playground</h1>
+          <p class="subtitle">
+            Standalone, zero-build Web Component &amp; ES module. Filter outfits, swap backgrounds, and feed Indie a custom script, structured weather telemetry, or live Open-Meteo coordinates.
+          </p>
+        </div>
+        <div class="preset-bar">
+          <button type="button" class="btn active" data-preset="lake">🏔️ Lake Tahoe Forecast</button>
+          <button type="button" class="btn" data-preset="morro">🌊 Morro Bay Coast</button>
+          <button type="button" class="btn" data-preset="openmeteo">🛰️ Live Open-Meteo</button>
+          <button type="button" class="btn" data-preset="night">🌙 Evening Studio</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <!-- Left column: Live Presenter + Embed Snippets -->
+        <div>
+          <indie-presenter
+            id="demo-presenter"
+            outfits="shorts,cozy,skort,rainy,night_black"
+            outfit="cozy"
+            mode="day"
+            bg-day="assets/bg_lake_tahoe.svg"
+            location-name="Lake Tahoe"
+            badge-text="Lake Tahoe Live Desk"
+            tagline="I'm Indie, your Lake Tahoe shoreline presenter"
+          ></indie-presenter>
+
+          <div class="card" style="margin-top: 18px;">
+            <div class="card-title">
+              <span>Copy-Paste Embed Snippets</span>
+              <span style="font-size: 12px; font-weight: 500; color: var(--muted);">Updates live with your settings</span>
+            </div>
+
+            <div class="embed-section">
+              <div class="embed-header">
+                <span>1. ES Module + Web Component (<code>&lt;script type="module"&gt;</code>)</span>
+                <button type="button" class="btn btn-sm" id="copy-module-btn">Copy</button>
+              </div>
+              <pre class="code-box" id="module-snippet"></pre>
+            </div>
+
+            <div class="embed-section">
+              <div class="embed-header">
+                <span>2. Lightweight <code>&lt;iframe&gt;</code> Embed (<code>embed.html</code>)</span>
+                <button type="button" class="btn btn-sm" id="copy-iframe-btn">Copy</button>
+              </div>
+              <pre class="code-box" id="iframe-snippet"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: Interactive Controls -->
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <span>1. Selectable Outfits</span>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-sm" id="outfits-lake-btn">Lake Set</button>
+                <button type="button" class="btn btn-sm" id="outfits-all-btn">All 9</button>
+              </div>
+            </div>
+            <div class="outfit-grid" id="outfit-grid"></div>
+            <p class="hint">
+              Uncheck outfits that don't fit your site (e.g., surf/kayak gear on a mountain lake site). Click <strong>Use</strong> to preview any outfit immediately.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span>2. Custom Background &amp; Mode</span>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                Day Background Preset
+                <select id="bg-select">
+                  <option value="assets/bg_lake_tahoe.svg">Lake Tahoe Shoreline (SVG)</option>
+                  <option value="assets/bg_morro_bay.jpg">Morro Bay Day</option>
+                  <option value="assets/bg_morro_bay_rainy.jpg">Morro Bay Rainy</option>
+                  <option value="assets/bg_indoor_clear_night.jpg">Indoor Clear Night</option>
+                  <option value="assets/bg_indoor_rainy_night.jpg">Indoor Rainy Night</option>
+                </select>
+              </label>
+              <label class="field">
+                Scene Mode
+                <select id="mode-select">
+                  <option value="auto">Auto (from weather)</option>
+                  <option value="day" selected>Day</option>
+                  <option value="rainy">Rainy</option>
+                  <option value="night">Night / Studio</option>
+                </select>
+              </label>
+            </div>
+            <label class="field" style="margin-top: 10px;">
+              Or Custom Background Image URL
+              <input type="text" id="bg-custom-url" placeholder="https://example.com/my-lake-photo.jpg" />
+            </label>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span>3. Location &amp; Forecast Source</span>
+            </div>
+
+            <div class="field-grid" style="margin-bottom: 12px;">
+              <label class="field">
+                Location Name
+                <input type="text" id="loc-name" value="Lake Tahoe" />
+              </label>
+              <label class="field">
+                Badge Text
+                <input type="text" id="badge-text" value="Lake Tahoe Live Desk" />
+              </label>
+            </div>
+
+            <div class="tabs">
+              <button type="button" class="btn btn-sm active" data-source-tab="telemetry">Weather Telemetry</button>
+              <button type="button" class="btn btn-sm" data-source-tab="script">Custom Script</button>
+              <button type="button" class="btn btn-sm" data-source-tab="openmeteo">Open-Meteo (lat/lon)</button>
+            </div>
+
+            <div class="tab-panel active" id="panel-telemetry">
+              <div class="field-grid">
+                <label class="field">
+                  Condition
+                  <input type="text" id="w-cond" value="crisp alpine sunshine" />
+                </label>
+                <label class="field">
+                  Temp (°F)
+                  <input type="number" id="w-temp" value="64" />
+                </label>
+                <label class="field">
+                  Wind (mph)
+                  <input type="number" id="w-wind" value="8" />
+                </label>
+                <label class="field">
+                  Water Temp (°F)
+                  <input type="number" id="w-water" value="58" />
+                </label>
+              </div>
+              <button type="button" class="btn" id="apply-telemetry-btn" style="margin-top: 10px;">Apply Telemetry</button>
+            </div>
+
+            <div class="tab-panel" id="panel-script">
+              <label class="field">
+                Spoken Script
+                <textarea id="custom-script">Good morning from Lake Tahoe! Skies are crystal clear, winds are light out of the southwest at 8 miles per hour, and it's a gorgeous day to get out on the water.</textarea>
+              </label>
+              <button type="button" class="btn" id="apply-script-btn" style="margin-top: 10px;">Apply Script</button>
+            </div>
+
+            <div class="tab-panel" id="panel-openmeteo">
+              <div class="field-grid">
+                <label class="field">
+                  Latitude
+                  <input type="number" step="0.0001" id="om-lat" value="39.0968" />
+                </label>
+                <label class="field">
+                  Longitude
+                  <input type="number" step="0.0001" id="om-lon" value="-120.0324" />
+                </label>
+              </div>
+              <button type="button" class="btn" id="fetch-om-btn" style="margin-top: 10px;">Fetch Live Open-Meteo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { OUTFITS, ALL_OUTFIT_KEYS } from './src/indie-presenter.js';
+
+      const presenter = document.getElementById('demo-presenter');
+      const outfitGrid = document.getElementById('outfit-grid');
+      const bgSelect = document.getElementById('bg-select');
+      const bgCustomUrl = document.getElementById('bg-custom-url');
+      const modeSelect = document.getElementById('mode-select');
+      const locNameInput = document.getElementById('loc-name');
+      const badgeTextInput = document.getElementById('badge-text');
+
+      const wCond = document.getElementById('w-cond');
+      const wTemp = document.getElementById('w-temp');
+      const wWind = document.getElementById('w-wind');
+      const wWater = document.getElementById('w-water');
+      const customScript = document.getElementById('custom-script');
+      const omLat = document.getElementById('om-lat');
+      const omLon = document.getElementById('om-lon');
+
+      const moduleSnippetEl = document.getElementById('module-snippet');
+      const iframeSnippetEl = document.getElementById('iframe-snippet');
+
+      let activeSourceTab = 'telemetry';
+      let enabledOutfits = ['shorts', 'cozy', 'skort', 'rainy', 'night_black'];
+
+      function renderOutfitCheckboxes() {
+        outfitGrid.innerHTML = '';
+        for (const key of ALL_OUTFIT_KEYS) {
+          const meta = OUTFITS[key];
+          const chip = document.createElement('div');
+          chip.className = 'outfit-chip';
+          const checked = enabledOutfits.includes(key);
+          chip.innerHTML = `
+            <label>
+              <input type="checkbox" value="${key}" ${checked ? 'checked' : ''} />
+              <span>${meta.label}</span>
+            </label>
+            <button type="button" class="preview-link" data-use="${key}">Use</button>
+          `;
+          chip.querySelector('input').addEventListener('change', (e) => {
+            if (e.target.checked) {
+              if (!enabledOutfits.includes(key)) enabledOutfits.push(key);
+            } else {
+              if (enabledOutfits.length <= 1) {
+                e.target.checked = true;
+                return;
+              }
+              enabledOutfits = enabledOutfits.filter((k) => k !== key);
+            }
+            presenter.setConfig({ outfits: enabledOutfits });
+            updateEmbedSnippets();
+          });
+          chip.querySelector('.preview-link').addEventListener('click', () => {
+            if (!enabledOutfits.includes(key)) {
+              enabledOutfits.push(key);
+              renderOutfitCheckboxes();
+              presenter.setConfig({ outfits: enabledOutfits });
+            }
+            presenter.setOutfit(key);
+            updateEmbedSnippets();
+          });
+          outfitGrid.appendChild(chip);
+        }
+      }
+
+      function applyTelemetry() {
+        presenter.setConfig({
+          locationName: locNameInput.value.trim() || 'Lake Tahoe',
+          badgeText: badgeTextInput.value.trim(),
+          script: '',
+          lat: null,
+          lon: null,
+          weather: {
+            locationName: locNameInput.value.trim() || 'Lake Tahoe',
+            condition: wCond.value.trim() || 'clear skies',
+            tempF: Number(wTemp.value),
+            windMph: Number(wWind.value),
+            windDir: 'southwest',
+            waterTempF: wWater.value !== '' ? Number(wWater.value) : null,
+            isRainy: modeSelect.value === 'rainy',
+            isNight: modeSelect.value === 'night',
+          },
+        });
+        updateEmbedSnippets();
+      }
+
+      function updateEmbedSnippets() {
+        const originBase =
+          window.location.origin && window.location.origin !== 'null'
+            ? new URL('./', window.location.href).href
+            : 'https://gomce62.github.io/indie-avatar/';
+
+        const moduleUrl = `${originBase}src/indie-presenter.js`;
+        const embedUrl = new URL(`${originBase}embed.html`);
+
+        const outfitsStr = enabledOutfits.join(',');
+        const bgDay = bgCustomUrl.value.trim() || bgSelect.value;
+        const mode = modeSelect.value;
+        const loc = locNameInput.value.trim() || 'Lake Tahoe';
+        const badge = badgeTextInput.value.trim();
+
+        const attrs = [
+          `  outfits="${outfitsStr}"`,
+          `  outfit="${presenter.outfit}"`,
+          `  mode="${mode}"`,
+          `  bg-day="${bgDay}"`,
+          `  location-name="${loc}"`,
+        ];
+        if (badge) attrs.push(`  badge-text="${badge}"`);
+
+        embedUrl.searchParams.set('outfits', outfitsStr);
+        embedUrl.searchParams.set('outfit', presenter.outfit);
+        embedUrl.searchParams.set('mode', mode);
+        embedUrl.searchParams.set('bgDay', bgDay);
+        embedUrl.searchParams.set('locationName', loc);
+        if (badge) embedUrl.searchParams.set('badgeText', badge);
+
+        if (activeSourceTab === 'script') {
+          const s = customScript.value.trim();
+          attrs.push(`  script="${s.replace(/"/g, '&quot;')}"`);
+          embedUrl.searchParams.set('script', s);
+        } else if (activeSourceTab === 'openmeteo') {
+          attrs.push(`  lat="${omLat.value}"`);
+          attrs.push(`  lon="${omLon.value}"`);
+          embedUrl.searchParams.set('lat', omLat.value);
+          embedUrl.searchParams.set('lon', omLon.value);
+        }
+
+        moduleSnippetEl.textContent =
+`<script type="module" src="${moduleUrl}"><\/script>
+<indie-presenter
+${attrs.join('\n')}
+></indie-presenter>`;
+
+        iframeSnippetEl.textContent =
+`<iframe
+  src="${embedUrl.toString()}"
+  style="width: 100%; max-width: 680px; height: 540px; border: 0; border-radius: 18px;"
+  allow="autoplay"
+  title="Indie Weather Presenter"
+></iframe>`;
+      }
+
+      // Wire events
+      document.getElementById('outfits-lake-btn').addEventListener('click', () => {
+        enabledOutfits = ['shorts', 'cozy', 'skort', 'rainy', 'night_black'];
+        renderOutfitCheckboxes();
+        presenter.setConfig({ outfits: enabledOutfits, outfit: 'cozy' });
+        updateEmbedSnippets();
+      });
+
+      document.getElementById('outfits-all-btn').addEventListener('click', () => {
+        enabledOutfits = [...ALL_OUTFIT_KEYS];
+        renderOutfitCheckboxes();
+        presenter.setConfig({ outfits: enabledOutfits });
+        updateEmbedSnippets();
+      });
+
+      bgSelect.addEventListener('change', () => {
+        bgCustomUrl.value = '';
+        presenter.setConfig({ backgrounds: { day: bgSelect.value } });
+        updateEmbedSnippets();
+      });
+
+      bgCustomUrl.addEventListener('change', () => {
+        const val = bgCustomUrl.value.trim();
+        presenter.setConfig({ backgrounds: { day: val || bgSelect.value } });
+        updateEmbedSnippets();
+      });
+
+      modeSelect.addEventListener('change', () => {
+        presenter.setConfig({ mode: modeSelect.value });
+        updateEmbedSnippets();
+      });
+
+      locNameInput.addEventListener('input', () => {
+        presenter.setConfig({ locationName: locNameInput.value.trim() || 'Lake Tahoe' });
+        updateEmbedSnippets();
+      });
+
+      badgeTextInput.addEventListener('input', () => {
+        presenter.setConfig({ badgeText: badgeTextInput.value.trim() });
+        updateEmbedSnippets();
+      });
+
+      document.getElementById('apply-telemetry-btn').addEventListener('click', applyTelemetry);
+
+      document.getElementById('apply-script-btn').addEventListener('click', () => {
+        presenter.setConfig({
+          locationName: locNameInput.value.trim() || 'Lake Tahoe',
+          badgeText: badgeTextInput.value.trim(),
+          script: customScript.value.trim(),
+        });
+        updateEmbedSnippets();
+      });
+
+      document.getElementById('fetch-om-btn').addEventListener('click', () => {
+        presenter.setConfig({
+          locationName: locNameInput.value.trim() || 'Lake Tahoe',
+          badgeText: badgeTextInput.value.trim(),
+          script: '',
+          weather: null,
+          lat: Number(omLat.value),
+          lon: Number(omLon.value),
+        });
+        updateEmbedSnippets();
+      });
+
+      // Tabs
+      document.querySelectorAll('[data-source-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeSourceTab = btn.dataset.sourceTab;
+          document.querySelectorAll('[data-source-tab]').forEach((b) => b.classList.toggle('active', b === btn));
+          document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+          document.getElementById(`panel-${activeSourceTab}`).classList.add('active');
+          updateEmbedSnippets();
+        });
+      });
+
+      // Presets
+      document.querySelectorAll('[data-preset]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-preset]').forEach((b) => b.classList.toggle('active', b === btn));
+          const p = btn.dataset.preset;
+          if (p === 'lake') {
+            enabledOutfits = ['shorts', 'cozy', 'skort', 'rainy', 'night_black'];
+            bgSelect.value = 'assets/bg_lake_tahoe.svg';
+            bgCustomUrl.value = '';
+            modeSelect.value = 'day';
+            locNameInput.value = 'Lake Tahoe';
+            badgeTextInput.value = 'Lake Tahoe Live Desk';
+            wCond.value = 'crisp alpine sunshine';
+            wTemp.value = '64';
+            wWind.value = '8';
+            wWater.value = '58';
+            presenter.setConfig({
+              outfits: enabledOutfits,
+              outfit: 'cozy',
+              mode: 'day',
+              backgrounds: { day: 'assets/bg_lake_tahoe.svg' },
+              tagline: "I'm Indie, your Lake Tahoe shoreline presenter",
+            });
+            applyTelemetry();
+          } else if (p === 'morro') {
+            enabledOutfits = [...ALL_OUTFIT_KEYS];
+            bgSelect.value = 'assets/bg_morro_bay.jpg';
+            bgCustomUrl.value = '';
+            modeSelect.value = 'day';
+            locNameInput.value = 'Morro Bay';
+            badgeTextInput.value = 'Morro Bay Live Desk';
+            wCond.value = 'sunny coastal breeze';
+            wTemp.value = '68';
+            wWind.value = '11';
+            wWater.value = '57';
+            presenter.setConfig({
+              outfits: enabledOutfits,
+              outfit: 'rashguard',
+              mode: 'day',
+              backgrounds: { day: 'assets/bg_morro_bay.jpg' },
+              tagline: "I'm Indie, your Morro Bay marine presenter",
+            });
+            applyTelemetry();
+          } else if (p === 'openmeteo') {
+            modeSelect.value = 'auto';
+            locNameInput.value = 'Lake Tahoe';
+            badgeTextInput.value = 'Open-Meteo Live';
+            omLat.value = '39.0968';
+            omLon.value = '-120.0324';
+            document.querySelector('[data-source-tab="openmeteo"]').click();
+            presenter.setConfig({
+              mode: 'auto',
+              backgrounds: { day: 'assets/bg_lake_tahoe.svg' },
+              locationName: 'Lake Tahoe',
+              badgeText: 'Open-Meteo Live',
+              script: '',
+              weather: null,
+              lat: 39.0968,
+              lon: -120.0324,
+            });
+          } else if (p === 'night') {
+            enabledOutfits = ['night_black', 'night_bw', 'night_cowl'];
+            modeSelect.value = 'night';
+            locNameInput.value = 'Evening Studio';
+            badgeTextInput.value = 'Nightly Weather Desk';
+            presenter.setConfig({
+              outfits: enabledOutfits,
+              outfit: 'night_black',
+              mode: 'night',
+              locationName: 'Evening Studio',
+              badgeText: 'Nightly Weather Desk',
+              tagline: "I'm Indie with your evening outlook",
+              script: "Good evening! Overnight temperatures will dip into the upper forties under calm, clear skies. Tomorrow brings plenty of sunshine.",
+            });
+          }
+          renderOutfitCheckboxes();
+          updateEmbedSnippets();
+        });
+      });
+
+      // Copy buttons
+      function wireCopy(btnId, sourceEl) {
+        const btn = document.getElementById(btnId);
+        btn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(sourceEl.textContent);
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => (btn.textContent = orig), 1400);
+          } catch {
+            btn.textContent = 'Select & Copy';
+          }
+        });
+      }
+      wireCopy('copy-module-btn', moduleSnippetEl);
+      wireCopy('copy-iframe-btn', iframeSnippetEl);
+
+      presenter.addEventListener('indie:outfit-change', () => updateEmbedSnippets());
+
+      // Initialize
+      renderOutfitCheckboxes();
+      applyTelemetry();
+    </script>
+  </body>
+</html>
