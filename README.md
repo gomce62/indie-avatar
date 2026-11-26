@@ -24,3 +24,8 @@ Extracted from [morro-bay-dashboards](https://github.com/gomce62/morro-bay-dashb
   lon="-120.0324"
 ></indie-presenter>
 ```
+
+## Guides & Prompts
+
+- **[Example Prompt (`EXAMPLE_PROMPT.md`)](./EXAMPLE_PROMPT.md)** — Ready-to-use prompt template for asking Antigravity to build a new website with Indie.
+- **[Integration & Architecture Guide (`AGENTS.md`)](./AGENTS.md)** — Full Web Component, JS API, `embed.html`, and layering documentation.
