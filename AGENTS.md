@@ -73,3 +73,85 @@ To prevent flicker, dark shadow artifacts, and GPU tile tearing:
 - **Before pushing:**
   - Verify all referenced `assets/...` paths exist on disk.
   - Validate JS syntax with `node --check` (or `new Function(...)` for inline scripts).
+
+---
+
+## 6. Using Indie in a New Website (AI / Developer Integration Guide)
+
+When building a new website that embeds Indie, **do not copy `assets/` or `src/` into the new project** unless offline self-hosting is explicitly required. Import directly from GitHub Pages:
+
+- **ES Module URL:** `https://gomce62.github.io/indie-avatar/src/indie-presenter.js`
+- **Iframe Embed URL:** `https://gomce62.github.io/indie-avatar/embed.html`
+- **Live Playground:** `https://gomce62.github.io/indie-avatar/`
+
+### 6.1 Web Component (`<indie-presenter>`) Quick Drop-In
+
+```html
+<indie-presenter
+  outfits="shorts,cozy,skort,rainy,night_black"
+  outfit="cozy"
+  mode="auto"
+  bg-day="https://your-site.com/images/background.jpg"
+  location-name="Donner Lake"
+  badge-text="Donner Lake Live Desk"
+  tagline="I'm Indie, your Donner Lake weather presenter"
+  lat="39.3238"
+  lon="-120.2624"
+></indie-presenter>
+
+<script type="module" src="https://gomce62.github.io/indie-avatar/src/indie-presenter.js"></script>
+```
+
+### 6.2 Programmatic JS API (`setConfig` / `createIndiePresenter`)
+
+Use `setConfig(options)` when feeding custom telemetry from the host site's own API:
+
+```js
+import { createIndiePresenter } from 'https://gomce62.github.io/indie-avatar/src/indie-presenter.js';
+
+const indie = createIndiePresenter('#avatar-container', {
+  outfits: ['shorts', 'cozy', 'rainy', 'night_black'],
+  outfit: 'cozy',
+  mode: 'auto', // 'auto' | 'day' | 'rainy' | 'night'
+  locationName: 'Lake Don Pedro',
+  badgeText: 'Lake Don Pedro Live Desk',
+  tagline: "I'm Indie, your Lake Don Pedro presenter",
+  backgrounds: {
+    day: 'https://your-site.com/lake-day.jpg',
+    rainy: 'https://your-site.com/lake-rainy.jpg',
+    nightClear: 'https://your-site.com/lake-night.jpg',
+    nightRainy: 'https://your-site.com/lake-night-rain.jpg',
+  },
+  weather: {
+    condition: 'clear skies',
+    tempF: 74,
+    highF: 79,
+    lowF: 52,
+    windMph: 6,
+    windGustMph: 11,
+    windDir: 'west',
+    waterTempF: 68,
+    humidity: 42,
+    isRainy: false,
+    isNight: false,
+    summary: 'Calm conditions on the main body of the lake.',
+  },
+});
+```
+
+- **Forecast priority:** `script` (exact text) → `weather` (structured telemetry via `buildForecastScript`) → `lat`/`lon` (auto-fetches Open-Meteo).
+- **Available outfit keys:** `onepiece`, `shorts`, `skort`, `rashguard`, `cozy` (`day`); `rainy` (`rainy`); `night_black`, `night_bw`, `night_cowl` (`night`).
+- **Attributes:** `base-url`, `outfits`, `outfit`, `mode`, `bg-day`, `bg-rainy`, `bg-night-clear`, `bg-night-rainy`, `location-name`, `badge-text`, `tagline`, `script`, `lat`, `lon`, `rate` (`0.80–1.20`), `pitch` (`0.85–1.20`), `show-captions` (`true`/`false`), `compact` (boolean).
+- **Methods:** `play()`, `stop()`, `togglePlay()`, `setOutfit(key)`, `cycleOutfit()`, `refreshForecast()`, `setConfig(options)`, `getActiveScript()`.
+- **Events:** `indie:play`, `indie:end`, `indie:outfit-change`, `indie:forecast-loaded`, `indie:error`.
+- **CSS Variables:** `--indie-accent`, `--indie-accent-strong`, `--indie-surface`, `--indie-border`, `--indie-radius`.
+
+### 6.3 Iframe Embed (`embed.html`)
+
+Supported query params: `outfits`, `outfit`, `mode`, `bgDay`, `bgRainy`, `bgNightClear`, `bgNightRainy`, `locationName`, `badgeText`, `tagline`, `script`, `lat`, `lon`, `rate`, `pitch`, `showCaptions`, `compact`, `autoplay`.  
+Supported `postMessage` commands: `{ type: 'indie:configure', config }`, `{ type: 'indie:play' }`, `{ type: 'indie:stop' }`, `{ type: 'indie:setOutfit', outfit }`.
+
+### 6.4 Local Testing Note
+
+Always serve consuming pages over `http://localhost` (e.g., `python3 -m http.server` or VS Code Live Server) or HTTPS—browsers block `<script type="module">` over `file://`.
+
