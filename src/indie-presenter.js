@@ -304,19 +304,13 @@ const STYLES = /* css */ `
     0%, 100% {
       transform: translateX(-50%) translateY(0px) scale(1);
     }
-    25% {
-      transform: translateX(-50%) translateY(-2.5px) scale(1.008);
-    }
-    55% {
-      transform: translateX(-50%) translateY(-1px) scale(1.003);
-    }
-    78% {
-      transform: translateX(-50%) translateY(-3.5px) scale(1.012);
+    50% {
+      transform: translateX(-50%) translateY(-2px) scale(1.006);
     }
   }
 
   .indie-char-wrap.speaking {
-    animation: indieSpeakBody 3.4s ease-in-out infinite;
+    animation: indieSpeakBody 3.8s ease-in-out infinite;
   }
 
   .indie-frame {
@@ -327,7 +321,6 @@ const STYLES = /* css */ `
     object-fit: contain;
     object-position: bottom center;
     pointer-events: none;
-    /* No CSS opacity transition on frames to avoid flicker/tearing */
   }
 
   .indie-frame-closed {
@@ -339,10 +332,12 @@ const STYLES = /* css */ `
     z-index: 20;
     will-change: opacity;
     opacity: 0;
+    transition: opacity 55ms ease-out;
   }
 
   .indie-frame-blink {
     z-index: 21;
+    transition: none;
   }
 
   .indie-frame-overlay.active {
@@ -631,6 +626,8 @@ export class IndiePresenter extends HTMLElement {
     this._blinkOffTimer = null;
     this._mouthDebounceTimer = null;
     this._visemeTimers = [];
+    this._lastBoundaryAt = 0;
+    this._avgWordMs = 300;
     this._cadenceTimer = null;
     this._cadenceStartTimer = null;
     this._boundarySeen = false;
@@ -1272,9 +1269,10 @@ export class IndiePresenter extends HTMLElement {
     const letters = word.replace(/[^a-z]/g, '');
     if (!letters) return ['rest'];
 
-    const visemes = [];
-    const pushUnique = (v) => {
-      if (visemes[visemes.length - 1] !== v) visemes.push(v);
+    // Pick 1–2 primary vowel-driven shapes so the mouth moves smoothly without fluttering
+    const shapes = [];
+    const pushShape = (v) => {
+      if (shapes[shapes.length - 1] !== v) shapes.push(v);
     };
 
     for (let i = 0; i < letters.length; i++) {
@@ -1283,84 +1281,91 @@ export class IndiePresenter extends HTMLElement {
       const pair = ch + next;
 
       if (pair === 'oo' || pair === 'ou' || pair === 'ow' || pair === 'oa') {
-        pushUnique('round');
+        pushShape('round');
         i += 1;
       } else if (ch === 'o' || ch === 'u' || ch === 'w') {
-        pushUnique('round');
+        pushShape('round');
       } else if (ch === 'a') {
-        pushUnique('open');
+        pushShape('open');
       } else if (ch === 'e' || ch === 'i' || ch === 'y') {
-        pushUnique(visemes.length % 2 === 0 ? 'mid' : 'open');
-      } else if (ch === 'm' || ch === 'b' || ch === 'p' || ch === 'f' || ch === 'v') {
-        pushUnique('rest');
-      } else if (i === 0 || i === letters.length - 1) {
-        pushUnique('mid');
+        pushShape('mid');
       }
     }
 
-    if (visemes.length === 0) {
-      visemes.push('mid');
-    } else if (visemes.length === 1 && letters.length >= 3) {
-      visemes.push(visemes[0] === 'open' ? 'mid' : 'open');
+    if (shapes.length === 0) {
+      return /^[mbpfv]/.test(letters) ? ['rest'] : ['mid'];
     }
-
-    return visemes.slice(0, 5);
+    if (letters.length <= 4) {
+      return [shapes[0]];
+    }
+    if (shapes.length === 1) {
+      return [shapes[0], shapes[0] === 'open' ? 'mid' : 'open'];
+    }
+    return shapes.slice(0, 2);
   }
 
   _pulseMouthFromBoundary(wordOrLen) {
     this._clearVisemeTimers();
+
+    const now = performance.now();
+    if (this._lastBoundaryAt > 0) {
+      const delta = now - this._lastBoundaryAt;
+      if (delta >= 90 && delta <= 900) {
+        this._avgWordMs = this._avgWordMs * 0.65 + delta * 0.35;
+      }
+    }
+    this._lastBoundaryAt = now;
+
     const raw = typeof wordOrLen === 'string' ? wordOrLen : '';
     const visemes = raw ? this._wordToVisemes(raw) : [wordOrLen > 4 ? 'open' : 'mid'];
-    const stepMs = Math.round(92 / this._clamp(this._config.rate || 0.95, 0.8, 1.2));
+
+    const rate = this._clamp(this._config.rate || 0.95, 0.8, 1.2);
+    const estByLen = Math.max(150, Math.min(340, (raw.length * 42) / rate));
+    const wordBudgetMs = this._clamp(this._avgWordMs * 0.72 + estByLen * 0.28, 150, 380);
 
     this._mouthState = visemes[0];
     this._applyFaceState();
 
-    for (let i = 1; i < visemes.length; i++) {
-      const v = visemes[i];
+    if (visemes.length > 1) {
+      const secondDelay = Math.round(wordBudgetMs * 0.44);
       const t = setTimeout(() => {
         if (!this._isSpeaking) return;
-        this._mouthState = v;
+        this._mouthState = visemes[1];
         this._applyFaceState();
-      }, i * stepMs);
+      }, secondDelay);
       this._visemeTimers.push(t);
     }
 
-    const totalMs = visemes.length * stepMs;
     const isSentenceEnd = /[.!?]["')\]]*$/.test(raw);
-    const isClausePause = /[,;:]["')\]]*$/.test(raw);
+    const settleDelay = Math.round(wordBudgetMs * 0.86);
 
     this._mouthDebounceTimer = setTimeout(() => {
       if (!this._isSpeaking) return;
       this._mouthState = 'rest';
       this._applyFaceState();
 
-      if (isSentenceEnd || isClausePause) {
+      if (isSentenceEnd) {
         const smileWait = setTimeout(() => {
           if (this._isSpeaking) {
-            this._mouthState = isSentenceEnd ? 'closed' : 'rest';
+            this._mouthState = 'closed';
             this._applyFaceState();
           }
-        }, isSentenceEnd ? 180 : 120);
+        }, 200);
         this._visemeTimers.push(smileWait);
       }
-    }, totalMs + 35);
+    }, settleDelay);
   }
 
   _startCadenceFallback(text, autoStopAtEnd) {
     this._stopCadenceFallback();
     const words = text.trim().split(/\s+/).filter(Boolean);
     const totalWords = Math.max(1, words.length);
-    const estimatedMs = Math.max(1800, (totalWords / (2.5 * this._config.rate)) * 1000);
+    const wordVisemes = words.map((w) => ({
+      seq: this._wordToVisemes(w),
+      endSmile: /[.!?]["')\]]*$/.test(w),
+    }));
+    const estimatedMs = Math.max(1800, (totalWords / (2.55 * this._config.rate)) * 1000);
     const startTime = performance.now();
-
-    const timeline = [];
-    for (const w of words) {
-      const seq = this._wordToVisemes(w);
-      for (const v of seq) timeline.push(v);
-      timeline.push(/[.!?]$/.test(w) ? 'closed' : 'rest');
-    }
-    let step = 0;
 
     this._cadenceTimer = setInterval(() => {
       if (!this._isSpeaking) {
@@ -1369,17 +1374,33 @@ export class IndiePresenter extends HTMLElement {
       }
       const elapsed = performance.now() - startTime;
       const progress = Math.min(1, elapsed / estimatedMs);
-      const wordIdx = Math.min(totalWords - 1, Math.floor(progress * totalWords));
+      const wordFloat = progress * totalWords;
+      const wordIdx = Math.min(totalWords - 1, Math.floor(wordFloat));
+      const wordFrac = wordFloat - wordIdx;
+
       this._highlightWordByIndex(wordIdx);
 
-      this._mouthState = timeline[step % timeline.length] || 'rest';
-      step += 1;
-      this._applyFaceState();
+      const entry = wordVisemes[wordIdx];
+      let nextState = 'rest';
+      if (wordFrac < 0.78) {
+        if (entry.seq.length > 1 && wordFrac >= 0.39) {
+          nextState = entry.seq[1];
+        } else {
+          nextState = entry.seq[0];
+        }
+      } else if (entry.endSmile && wordFrac >= 0.90) {
+        nextState = 'closed';
+      }
+
+      if (this._mouthState !== nextState) {
+        this._mouthState = nextState;
+        this._applyFaceState();
+      }
 
       if (autoStopAtEnd && progress >= 1) {
         this._finishSpeaking();
       }
-    }, 105);
+    }, 60);
   }
 
   _stopCadenceFallback() {
@@ -1391,6 +1412,7 @@ export class IndiePresenter extends HTMLElement {
     const wasSpeaking = this._isSpeaking;
     this._isSpeaking = false;
     this._boundarySeen = false;
+    this._lastBoundaryAt = 0;
     clearTimeout(this._cadenceStartTimer);
     this._clearVisemeTimers();
     this._stopCadenceFallback();
