@@ -304,13 +304,19 @@ const STYLES = /* css */ `
     0%, 100% {
       transform: translateX(-50%) translateY(0px) scale(1);
     }
-    50% {
-      transform: translateX(-50%) translateY(-3px) scale(1.012);
+    25% {
+      transform: translateX(-50%) translateY(-2.5px) scale(1.008);
+    }
+    55% {
+      transform: translateX(-50%) translateY(-1px) scale(1.003);
+    }
+    78% {
+      transform: translateX(-50%) translateY(-3.5px) scale(1.012);
     }
   }
 
   .indie-char-wrap.speaking {
-    animation: indieSpeakBody 2.6s ease-in-out infinite;
+    animation: indieSpeakBody 3.4s ease-in-out infinite;
   }
 
   .indie-frame {
@@ -333,6 +339,10 @@ const STYLES = /* css */ `
     z-index: 20;
     will-change: opacity;
     opacity: 0;
+  }
+
+  .indie-frame-blink {
+    z-index: 21;
   }
 
   .indie-frame-overlay.active {
@@ -615,11 +625,12 @@ export class IndiePresenter extends HTMLElement {
     };
 
     this._isSpeaking = false;
-    this._mouthState = 'closed'; // 'closed' | 'mid' | 'open'
+    this._mouthState = 'closed'; // 'closed' | 'rest' | 'mid' | 'open' | 'round'
     this._isBlinking = false;
     this._blinkTimer = null;
     this._blinkOffTimer = null;
     this._mouthDebounceTimer = null;
+    this._visemeTimers = [];
     this._cadenceTimer = null;
     this._cadenceStartTimer = null;
     this._boundarySeen = false;
@@ -895,7 +906,10 @@ export class IndiePresenter extends HTMLElement {
         this._boundarySeen = true;
         this._stopCadenceFallback();
         this._highlightWordAtChar(event.charIndex);
-        this._pulseMouthFromBoundary(event.charLength || 4);
+        const tail = text.slice(event.charIndex);
+        const wordMatch = tail.match(/^\S+/);
+        const word = wordMatch ? wordMatch[0] : tail.slice(0, event.charLength || 4);
+        this._pulseMouthFromBoundary(word);
       }
     };
 
@@ -940,8 +954,10 @@ export class IndiePresenter extends HTMLElement {
         <div class="indie-ground-shadow"></div>
         <div class="indie-char-wrap">
           <img class="indie-frame indie-frame-closed" alt="Indie Presenter" />
+          <img class="indie-frame indie-frame-overlay indie-frame-rest" alt="" aria-hidden="true" />
           <img class="indie-frame indie-frame-overlay indie-frame-mid" alt="" aria-hidden="true" />
           <img class="indie-frame indie-frame-overlay indie-frame-open" alt="" aria-hidden="true" />
+          <img class="indie-frame indie-frame-overlay indie-frame-round" alt="" aria-hidden="true" />
           <img class="indie-frame indie-frame-overlay indie-frame-blink" alt="" aria-hidden="true" />
         </div>
         <div class="indie-hud-top">
@@ -980,8 +996,10 @@ export class IndiePresenter extends HTMLElement {
       bg: root.querySelector('.indie-bg'),
       charWrap: root.querySelector('.indie-char-wrap'),
       frameClosed: root.querySelector('.indie-frame-closed'),
+      frameRest: root.querySelector('.indie-frame-rest'),
       frameMid: root.querySelector('.indie-frame-mid'),
       frameOpen: root.querySelector('.indie-frame-open'),
+      frameRound: root.querySelector('.indie-frame-round'),
       frameBlink: root.querySelector('.indie-frame-blink'),
       liveDot: root.querySelector('.indie-live-dot'),
       badgeText: root.querySelector('.indie-badge-text'),
@@ -1136,7 +1154,7 @@ export class IndiePresenter extends HTMLElement {
 
   _preloadOutfit(key) {
     const base = this._config.baseUrl;
-    for (const suffix of ['closed', 'mid', 'open', 'blink']) {
+    for (const suffix of ['closed', 'rest', 'mid', 'open', 'round', 'blink']) {
       preloadImage(resolveAssetUrl(`indie_${key}_${suffix}.png`, base));
     }
   }
@@ -1171,8 +1189,10 @@ export class IndiePresenter extends HTMLElement {
     const key = this._getActiveOutfitKey();
     const base = this._config.baseUrl;
     this._els.frameClosed.src = resolveAssetUrl(`indie_${key}_closed.png`, base);
+    this._els.frameRest.src = resolveAssetUrl(`indie_${key}_rest.png`, base);
     this._els.frameMid.src = resolveAssetUrl(`indie_${key}_mid.png`, base);
     this._els.frameOpen.src = resolveAssetUrl(`indie_${key}_open.png`, base);
+    this._els.frameRound.src = resolveAssetUrl(`indie_${key}_round.png`, base);
     this._els.frameBlink.src = resolveAssetUrl(`indie_${key}_blink.png`, base);
     this._applyFaceState();
   }
@@ -1203,12 +1223,16 @@ export class IndiePresenter extends HTMLElement {
 
   _applyFaceState() {
     const showBlink = this._isBlinking;
-    const showMid = !showBlink && this._mouthState === 'mid';
-    const showOpen = !showBlink && this._mouthState === 'open';
+    const showRest = this._mouthState === 'rest';
+    const showMid = this._mouthState === 'mid';
+    const showOpen = this._mouthState === 'open';
+    const showRound = this._mouthState === 'round';
 
     this._els.frameBlink.classList.toggle('active', showBlink);
+    this._els.frameRest.classList.toggle('active', showRest);
     this._els.frameMid.classList.toggle('active', showMid);
     this._els.frameOpen.classList.toggle('active', showOpen);
+    this._els.frameRound.classList.toggle('active', showRound);
   }
 
   _startBlinkLoop() {
@@ -1235,17 +1259,92 @@ export class IndiePresenter extends HTMLElement {
     this._applyFaceState();
   }
 
-  _pulseMouthFromBoundary(charLen) {
+  _clearVisemeTimers() {
     clearTimeout(this._mouthDebounceTimer);
-    this._mouthState = charLen > 4 || Math.random() > 0.45 ? 'open' : 'mid';
+    if (this._visemeTimers.length) {
+      for (const id of this._visemeTimers) clearTimeout(id);
+      this._visemeTimers = [];
+    }
+  }
+
+  _wordToVisemes(rawWord) {
+    const word = String(rawWord || '').toLowerCase();
+    const letters = word.replace(/[^a-z]/g, '');
+    if (!letters) return ['rest'];
+
+    const visemes = [];
+    const pushUnique = (v) => {
+      if (visemes[visemes.length - 1] !== v) visemes.push(v);
+    };
+
+    for (let i = 0; i < letters.length; i++) {
+      const ch = letters[i];
+      const next = letters[i + 1] || '';
+      const pair = ch + next;
+
+      if (pair === 'oo' || pair === 'ou' || pair === 'ow' || pair === 'oa') {
+        pushUnique('round');
+        i += 1;
+      } else if (ch === 'o' || ch === 'u' || ch === 'w') {
+        pushUnique('round');
+      } else if (ch === 'a') {
+        pushUnique('open');
+      } else if (ch === 'e' || ch === 'i' || ch === 'y') {
+        pushUnique(visemes.length % 2 === 0 ? 'mid' : 'open');
+      } else if (ch === 'm' || ch === 'b' || ch === 'p' || ch === 'f' || ch === 'v') {
+        pushUnique('rest');
+      } else if (i === 0 || i === letters.length - 1) {
+        pushUnique('mid');
+      }
+    }
+
+    if (visemes.length === 0) {
+      visemes.push('mid');
+    } else if (visemes.length === 1 && letters.length >= 3) {
+      visemes.push(visemes[0] === 'open' ? 'mid' : 'open');
+    }
+
+    return visemes.slice(0, 5);
+  }
+
+  _pulseMouthFromBoundary(wordOrLen) {
+    this._clearVisemeTimers();
+    const raw = typeof wordOrLen === 'string' ? wordOrLen : '';
+    const visemes = raw ? this._wordToVisemes(raw) : [wordOrLen > 4 ? 'open' : 'mid'];
+    const stepMs = Math.round(92 / this._clamp(this._config.rate || 0.95, 0.8, 1.2));
+
+    this._mouthState = visemes[0];
     this._applyFaceState();
 
-    this._mouthDebounceTimer = setTimeout(() => {
-      if (this._isSpeaking) {
-        this._mouthState = 'closed';
+    for (let i = 1; i < visemes.length; i++) {
+      const v = visemes[i];
+      const t = setTimeout(() => {
+        if (!this._isSpeaking) return;
+        this._mouthState = v;
         this._applyFaceState();
+      }, i * stepMs);
+      this._visemeTimers.push(t);
+    }
+
+    const totalMs = visemes.length * stepMs;
+    const isSentenceEnd = /[.!?]["')\]]*$/.test(raw);
+    const isClausePause = /[,;:]["')\]]*$/.test(raw);
+
+    this._mouthDebounceTimer = setTimeout(() => {
+      if (!this._isSpeaking) return;
+      this._mouthState = 'rest';
+      this._applyFaceState();
+
+      if (isSentenceEnd || isClausePause) {
+        const smileWait = setTimeout(() => {
+          if (this._isSpeaking) {
+            this._mouthState = isSentenceEnd ? 'closed' : 'rest';
+            this._applyFaceState();
+          }
+        }, isSentenceEnd ? 180 : 120);
+        this._visemeTimers.push(smileWait);
       }
-    }, 115);
+    }, totalMs + 35);
   }
 
   _startCadenceFallback(text, autoStopAtEnd) {
@@ -1254,7 +1353,13 @@ export class IndiePresenter extends HTMLElement {
     const totalWords = Math.max(1, words.length);
     const estimatedMs = Math.max(1800, (totalWords / (2.5 * this._config.rate)) * 1000);
     const startTime = performance.now();
-    const sequence = ['mid', 'open', 'mid', 'closed'];
+
+    const timeline = [];
+    for (const w of words) {
+      const seq = this._wordToVisemes(w);
+      for (const v of seq) timeline.push(v);
+      timeline.push(/[.!?]$/.test(w) ? 'closed' : 'rest');
+    }
     let step = 0;
 
     this._cadenceTimer = setInterval(() => {
@@ -1267,14 +1372,14 @@ export class IndiePresenter extends HTMLElement {
       const wordIdx = Math.min(totalWords - 1, Math.floor(progress * totalWords));
       this._highlightWordByIndex(wordIdx);
 
-      this._mouthState = sequence[step % sequence.length];
+      this._mouthState = timeline[step % timeline.length] || 'rest';
       step += 1;
       this._applyFaceState();
 
       if (autoStopAtEnd && progress >= 1) {
         this._finishSpeaking();
       }
-    }, 155);
+    }, 105);
   }
 
   _stopCadenceFallback() {
@@ -1287,7 +1392,7 @@ export class IndiePresenter extends HTMLElement {
     this._isSpeaking = false;
     this._boundarySeen = false;
     clearTimeout(this._cadenceStartTimer);
-    clearTimeout(this._mouthDebounceTimer);
+    this._clearVisemeTimers();
     this._stopCadenceFallback();
 
     this._mouthState = 'closed';
